@@ -2,6 +2,39 @@
 - Repo: https://github.com/openclaw/openclaw
 - GitHub issues/comments/PR comments: use literal multiline strings or `-F - <<'EOF'` (or $'...') for real newlines; never embed "\\n".
 
+## Project Overview
+OpenClaw is a personal AI assistant platform that runs on your own devices. It connects to 20+ messaging channels (WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, BlueBubbles, Microsoft Teams, Matrix, Zalo, LINE, and more) with a local-first Gateway control plane, Pi agent runtime, and companion apps for macOS, iOS, and Android.
+
+**Key capabilities:** multi-channel inbox, multi-agent routing with isolated workspaces, Voice Wake + Talk Mode, Live Canvas visualization (A2UI), skill system (bundled/managed/workspace skills), browser automation, cron jobs, and an extensible plugin architecture.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Gateway (control plane)               │
+│  WebSocket server · protocol-driven RPC · session mgmt   │
+│  src/gateway/                                            │
+├──────────┬──────────┬──────────┬──────────┬─────────────┤
+│ Channels │  Agents  │  Skills  │  Tools   │   Routing   │
+│ src/     │ src/     │ skills/  │ src/     │ src/routing/ │
+│ telegram │ agents/  │ (52      │ agents/  │             │
+│ discord  │ pi-*     │ bundled) │ tools/   │             │
+│ slack    │          │          │          │             │
+│ signal   │          │          │          │             │
+│ web      │          │          │          │             │
+│ imessage │          │          │          │             │
+├──────────┴──────────┴──────────┴──────────┴─────────────┤
+│              Extensions (30 plugin packages)              │
+│  extensions/* (channels, auth, diagnostics, memory, etc.) │
+├──────────────────────────────────────────────────────────┤
+│                  Companion Apps                           │
+│  apps/macos (menu bar) · apps/ios · apps/android          │
+│  apps/shared/OpenClawKit (shared Swift code)              │
+├──────────────────────────────────────────────────────────┤
+│            Web UI (Vite + Lit)  ·  ui/                    │
+└──────────────────────────────────────────────────────────┘
+```
+
 ## Project Structure & Module Organization
 - Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
 - Tests: colocated `*.test.ts`.
@@ -14,6 +47,116 @@
   - Core channel code: `src/telegram`, `src/discord`, `src/slack`, `src/signal`, `src/imessage`, `src/web` (WhatsApp web), `src/channels`, `src/routing`
   - Extensions (channel plugins): `extensions/*` (e.g. `extensions/msteams`, `extensions/matrix`, `extensions/zalo`, `extensions/zalouser`, `extensions/voice-call`)
 - When adding channels/extensions/apps/docs, review `.github/labeler.yml` for label coverage.
+
+### Source Directory Map (`src/`)
+| Directory | Purpose |
+|-----------|---------|
+| `acp/` | Agent Client Protocol implementation |
+| `agents/` | Agent runtime: Pi embedded runner, skills loader, tools, sandbox, auth profiles |
+| `agents/tools/` | Tool definitions (bash, browser, canvas, file, memory, etc.) |
+| `auto-reply/` | Auto-reply system |
+| `browser/` | Browser automation (Playwright-based) |
+| `canvas-host/` | Canvas rendering and A2UI bundle |
+| `channels/` | Channel registry, allowlists, command gating, plugin channels |
+| `cli/` | CLI infrastructure, program setup, subcommand CLIs (gateway, node, cron, daemon, browser) |
+| `commands/` | Command implementations (agent, channels, onboarding, models, status) |
+| `compat/` | Compatibility layers |
+| `config/` | Configuration management and session config |
+| `control-ui/` | Web control UI |
+| `cron/` | Cron scheduling, isolated agents, cron service |
+| `daemon/` | Daemon management |
+| `discord/` | Discord channel integration |
+| `docs/` | Documentation generation |
+| `gateway/` | Core control plane: WebSocket server, protocol, RPC methods |
+| `gateway/server-methods/` | RPC methods (agent, browser, channels, chat, config, connect, cron, devices, health, logs, models, nodes, send, sessions, skills, system, talk, tts, update, usage, voicewake, web, wizard) |
+| `hooks/` | Hook system with bundled hooks |
+| `imessage/` | iMessage channel integration |
+| `infra/` | Infrastructure: networking (SSH, Tailscale, tunnels), outbound TLS, binary management |
+| `line/` | LINE bot integration |
+| `link-understanding/` | Web link analysis |
+| `logging/` | Logging infrastructure |
+| `macos/` | macOS app integration |
+| `markdown/` | Markdown processing |
+| `media/` | Media pipeline (images, audio, video) |
+| `media-understanding/` | Vision/media analysis with providers |
+| `memory/` | Vector memory/embeddings (sqlite-vec) |
+| `node-host/` | Node host integration |
+| `pairing/` | Device pairing and authentication |
+| `plugin-sdk/` | Plugin SDK (published to npm) |
+| `plugins/` | Plugin system and runtime |
+| `process/` | Process management |
+| `routing/` | Message routing logic |
+| `security/` | Security utilities |
+| `sessions/` | Session persistence and management |
+| `shared/` | Shared utilities |
+| `signal/` | Signal channel integration |
+| `slack/` | Slack channel integration |
+| `telegram/` | Telegram channel integration |
+| `terminal/` | Terminal UI: tables, palette, ANSI-safe wrapping |
+| `tui/` | Terminal UI components |
+| `utils/` | General utilities |
+| `web/` | Web/WhatsApp web channel |
+| `wizard/` | Onboarding wizard |
+
+### Extensions (`extensions/`)
+30 plugin packages organized by type:
+- **Channels:** `bluebubbles`, `discord`, `googlechat`, `imessage`, `line`, `matrix`, `mattermost`, `msteams`, `nextcloud-talk`, `signal`, `slack`, `telegram`, `whatsapp`, `zalo`, `zalouser`
+- **Features:** `voice-call`, `llm-task`, `lobster`, `open-prose`, `nostr`, `tlon`, `twitch`
+- **Auth:** `google-antigravity-auth`, `google-gemini-cli-auth`, `qwen-portal-auth`, `copilot-proxy`
+- **Infrastructure:** `diagnostics-otel`, `memory-core`, `memory-lancedb`
+
+### Apps (`apps/`)
+- `macos/` — Swift menu bar app (XcodeGen project, Fastlane)
+- `ios/` — SwiftUI app (XcodeGen project, Fastlane)
+- `android/` — Kotlin app (Gradle)
+- `shared/OpenClawKit/` — Shared Swift library for iOS/macOS
+
+### Skills (`skills/`)
+52 bundled AI skills including: 1password, apple-notes, apple-reminders, canvas, coding-agent, discord, github, peekaboo, slack, spotify-player, tmux, trello, voice-call, weather, and more.
+
+### Key Scripts (`scripts/`)
+- `committer` — Scoped git commit wrapper (preferred over manual `git add`/`git commit`)
+- `package-mac-app.sh` / `codesign-mac-app.sh` / `notarize-mac-artifact.sh` — macOS build pipeline
+- `protocol-gen.ts` / `protocol-gen-swift.ts` — Protocol schema generation
+- `update-clawtributors.ts` — Update contributor list in README
+- `bundle-a2ui.sh` — Bundle A2UI canvas
+- `clawlog.sh` — macOS unified log viewer
+- `e2e/` — E2E test scripts (onboarding, gateway, plugins, doctor)
+
+### Workspace Layout (pnpm)
+```yaml
+packages:
+  - .                # Root (CLI + gateway + core)
+  - ui               # Web UI (Vite + Lit)
+  - packages/*       # Workspace packages (clawdbot, moltbot)
+  - extensions/*     # 30 extension plugins
+```
+
+## Key Dependencies
+| Package | Purpose |
+|---------|---------|
+| `@mariozechner/pi-agent-core` | Pi agent runtime |
+| `@whiskeysockets/baileys` | WhatsApp Web protocol |
+| `grammy` | Telegram bot framework |
+| `@slack/bolt` | Slack integration |
+| `hono` | HTTP framework (gateway) |
+| `express` | Web server |
+| `ws` | WebSocket server |
+| `sharp` | Image processing |
+| `playwright-core` | Browser automation |
+| `sqlite-vec` | Vector embeddings |
+| `commander` | CLI argument parsing |
+| `zod` | Runtime type validation |
+| `lit` | Web components (UI) |
+| `rolldown` | Bundler (A2UI) |
+
+## CI/CD
+- **GitHub Actions** (`.github/workflows/ci.yml`): lint, test, build, protocol check, format — on both Node and Bun runtimes.
+- Runners: `blacksmith-4vcpu-ubuntu-2404` with Node 22.x.
+- Frozen lockfile enforcement. Submodule initialization with retry logic.
+- Additional workflows: `install-smoke.yml`, `docker-release.yml`, `labeler.yml`, `workflow-sanity.yml`.
+- Docker images: `Dockerfile` (production), `Dockerfile.sandbox`, `Dockerfile.sandbox-browser`.
+- Deployment targets: Fly.io (`fly.toml`), Render (`render.yaml`), Docker Compose.
 
 ## Docs Linking (Mintlify)
 - Docs are hosted on Mintlify (docs.openclaw.ai).
@@ -47,6 +190,26 @@
 - Type-check/build: `pnpm build` (tsc)
 - Lint/format: `pnpm lint` (oxlint), `pnpm format` (oxfmt)
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
+
+### Quick Reference
+```bash
+pnpm install              # Install deps
+pnpm build                # Type-check + build (tsc + canvas bundle + protocol gen)
+pnpm lint                 # Lint (oxlint for TS + Swift)
+pnpm format               # Check formatting (oxfmt)
+pnpm format:fix           # Auto-fix formatting
+pnpm test                 # Run all tests (vitest)
+pnpm test:coverage        # Tests with V8 coverage report
+pnpm test:e2e             # E2E tests only
+pnpm openclaw ...         # Run CLI in dev mode
+pnpm gateway:watch        # Gateway dev with auto-reload
+pnpm ui:dev               # Web UI dev server
+pnpm ios:run              # Build + run iOS app
+pnpm android:run           # Build + run Android app
+pnpm mac:package          # Package macOS app
+pnpm protocol:gen         # Regenerate protocol schemas
+pnpm canvas:a2ui:bundle   # Bundle A2UI canvas
+```
 
 ## Coding Style & Naming Conventions
 - Language: TypeScript (ESM). Prefer strict typing; avoid `any`.
